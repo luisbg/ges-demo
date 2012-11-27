@@ -33,6 +33,17 @@
  * and other callbacks have easy access.
  */
 
+typedef struct Clip
+{
+  gchar * uri;
+  guint64 * start;
+  guint64 * duration;
+  guint64 * in_point;
+  guint64 * max_duration;
+  GESTimelineObject * tlobject;
+
+} Clip;
+
 typedef struct App
 {
   /* back-end objects */
@@ -44,21 +55,11 @@ typedef struct App
   guint audio_tracks;
   guint video_tracks;
 
-  /* application state */
-  gchar *pending_uri;
-  int n_objects;
+  GtkListStore *timeline_store;
+  GList *objects;
+  Clip *selected_object;
 
-  int n_selected;
-  GList *selected_objects;
-  GType selected_type;
-  gboolean first_selected;
-  gboolean last_selected;
-
-  gboolean ignore_input;
   GstState state;
-
-  GtkListStore *model;
-  GtkTreeSelection *selection;
 
   /* widgets */
   GtkWidget *main_window;
@@ -68,8 +69,6 @@ typedef struct App
   GtkHScale *in_point_scale;
 
 } App;
-
-static int n_instances = 0;
 
 /* Prototypes for auto-connected signal handlers ***************************/
 
@@ -184,22 +183,6 @@ str_to_time (const gchar * str)
   return ret;
 }
 
-static void
-text_notify_text_changed_cb (GtkEntry * widget, GParamSpec * unused, App * app)
-{
-  GList *tmp;
-  const gchar *text;
-
-  if (app->ignore_input)
-    return;
-
-  text = gtk_entry_get_text (widget);
-
-  //  for (tmp = app->selected_objects; tmp; tmp = tmp->next) {
-  //    g_object_set (G_OBJECT (tmp->data), "text", text, NULL);
-  //  }
-}
-
 /* UI Initialization ********************************************************/
 
 static gboolean
@@ -232,10 +215,11 @@ create_ui (App * app)
 
   /* create the model for the treeview */
 
-  app->model =
+  app->timeline_store =
     gtk_list_store_new (3, G_TYPE_STRING, G_TYPE_UINT64, G_TYPE_OBJECT);
 
-  gtk_tree_view_set_model (timeline, GTK_TREE_MODEL (app->model));
+  gtk_tree_view_set_model (app->timeline_treeview,
+      GTK_TREE_MODEL (app->timeline_store));
 
   /* register callbacks on GES objects */
   bus = gst_pipeline_get_bus (GST_PIPELINE (app->pipeline));
@@ -327,52 +311,35 @@ app_dispose (App * app)
     g_free (app);
   }
 
-  n_instances--;
-
-  if (n_instances == 0) {
-    gtk_main_quit ();
-  }
-}
-
-static App *
-app_init (void)
-{
-  App *ret;
-  ret = g_new0 (App, 1);
-  n_instances++;
-
-  ret->selected_type = G_TYPE_NONE;
-
-  ret->timeline = ges_timeline_new ();
-  ret->pipeline = ges_timeline_pipeline_new ();
-  ges_timeline_pipeline_add_timeline (ret->pipeline, ret->timeline);
-
-  create_ui (ret);
-
-  return ret;
+  gtk_main_quit ();
 }
 
 static App *
 app_new (void)
 {
-  App *ret;
+  App *app = g_new0 (App, 1);
   GESTrack *a = NULL, *v = NULL;
 
-  ret = app_init ();
+  app->timeline = ges_timeline_new ();
+  app->pipeline = ges_timeline_pipeline_new ();
+  ges_timeline_pipeline_add_timeline (app->pipeline, app->timeline);
 
   /* add base audio and video track */
   a = ges_track_audio_raw_new ();
-  ges_timeline_add_track (ret->timeline, a);
+  ges_timeline_add_track (app->timeline, a);
 
   v = ges_track_video_raw_new ();
-  ges_timeline_add_track (ret->timeline, v);
+  ges_timeline_add_track (app->timeline, v);
 
-  ret->layer = (GESTimelineLayer *) ges_simple_timeline_layer_new ();
-  ges_timeline_add_layer (ret->timeline, ret->layer);
+  app->layer = (GESTimelineLayer *) ges_simple_timeline_layer_new ();
+  ges_timeline_add_layer (app->timeline, app->layer);
 
-  ret->audio_track = a;
-  ret->video_track = v;
-  return ret;
+  app->audio_track = a;
+  app->video_track = v;
+
+  create_ui (app);
+
+  return app;
 }
 
 /* UI callbacks  ************************************************************/
@@ -425,16 +392,14 @@ gboolean
 _duration_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
     gdouble value, App * app)
 {
-  GList *i;
+  guint64 duration, maxduration;
+  maxduration =
+      ges_timeline_filesource_get_max_duration (GES_TIMELINE_FILE_SOURCE
+      (app->selected_object->tlobject));
+  duration = (value < maxduration ? (value > 0 ? value : 0) : maxduration);
+  g_object_set (G_OBJECT (app->selected_object->tlobject), "duration",
+      (guint64) duration, NULL);
 
-  for (i = app->selected_objects; i; i = i->next) {
-    guint64 duration, maxduration;
-    maxduration =
-        ges_timeline_filesource_get_max_duration (GES_TIMELINE_FILE_SOURCE
-        (i->data));
-    duration = (value < maxduration ? (value > 0 ? value : 0) : maxduration);
-    g_object_set (G_OBJECT (i->data), "duration", (guint64) duration, NULL);
-  }
   return TRUE;
 }
 
@@ -443,16 +408,15 @@ gboolean
 _in_point_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
     gdouble value, App * app)
 {
-  GList *i;
+  guint64 in_point, maxduration;
+  maxduration =
+      ges_timeline_filesource_get_max_duration (GES_TIMELINE_FILE_SOURCE
+      (app->selected_object->tlobject)) -
+      GES_TIMELINE_OBJECT_DURATION (app->selected_object->tlobject);
+  in_point = (value < maxduration ? (value > 0 ? value : 0) : maxduration);
+  g_object_set (G_OBJECT (app->selected_object->tlobject), "in-point",
+      (guint64) in_point, NULL);
 
-  for (i = app->selected_objects; i; i = i->next) {
-    guint64 in_point, maxduration;
-    maxduration =
-        ges_timeline_filesource_get_max_duration (GES_TIMELINE_FILE_SOURCE
-        (i->data)) - GES_TIMELINE_OBJECT_DURATION (i->data);
-    in_point = (value < maxduration ? (value > 0 ? value : 0) : maxduration);
-    g_object_set (G_OBJECT (i->data), "in-point", (guint64) in_point, NULL);
-  }
   return TRUE;
 }
 
