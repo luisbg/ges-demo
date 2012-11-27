@@ -1,1 +1,8 @@
-simple demo of the gst-editing-services
+Simple demo of the gst-editing-services
+
+
+Steps to run:
+-------------
+./autogen.sh
+make
+./src/gesdemo
