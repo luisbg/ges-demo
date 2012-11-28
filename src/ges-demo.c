@@ -90,16 +90,16 @@ enum
 
 gboolean _window_delete_event_cb (GtkObject * window, GdkEvent * event,
     App * app);
-gboolean _play_activate_cb (GtkObject * button, GdkEvent * event, App * app);
-gboolean _stop_activate_cb (GtkObject * button, GdkEvent * event, App * app);
+gboolean _play_activate_cb (GtkObject * button, App * app);
+gboolean _stop_activate_cb (GtkObject * button, App * app);
 void _add_file_activated_cb (GtkAction * item, App * app);
 gboolean _duration_scale_change_value_cb (GtkRange * range,
     GtkScrollType unused, gdouble value, App * app);
 gboolean _in_point_scale_change_value_cb (GtkRange * range,
     GtkScrollType unused, gdouble value, App * app);
-gboolean _start_changed (GtkEntry * entry, GdkEvent * event, App * app);
-gboolean _clip_selected (GtkTreeView * treeview, GdkEvent * event, App * app);
-gboolean _delete_activate_cb (GtkObject * button, GdkEvent * event, App * app);
+gboolean _start_changed (GtkEntry * entry, App * app);
+gboolean _clip_selected (GtkTreeView * treeview, App * app);
+gboolean _delete_activate_cb (GtkObject * button, App * app);
 
 
 /* Backend callbacks ********************************************************/
@@ -384,13 +384,13 @@ app_init (void)
 /* UI callbacks  ************************************************************/
 
 gboolean
-_play_activate_cb (GtkObject * button, GdkEvent * event, App * app)
+_play_activate_cb (GtkObject * button, App * app)
 {
   gst_element_set_state (GST_ELEMENT (app->pipeline), GST_STATE_PLAYING);
 }
 
 gboolean
-_stop_activate_cb (GtkObject * button, GdkEvent * event, App * app)
+_stop_activate_cb (GtkObject * button, App * app)
 {
   gst_element_set_state (GST_ELEMENT (app->pipeline), GST_STATE_READY);
 }
@@ -457,19 +457,19 @@ _in_point_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
 }
 
 gboolean
-_start_changed (GtkEntry * entry, GdkEvent * event, App * app)
+_start_changed (GtkEntry * entry, App * app)
 {
   return TRUE;
 }
 
 gboolean
-_clip_selected (GtkTreeView * treeview, GdkEvent * event, App * app)
+_clip_selected (GtkTreeView * treeview, App * app)
 {
   return TRUE;
 }
 
 gboolean
-_delete_activate_cb (GtkObject * button, GdkEvent * event, App * app)
+_delete_activate_cb (GtkObject * button, App * app)
 {
   return TRUE;
 }
