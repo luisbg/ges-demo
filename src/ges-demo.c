@@ -219,7 +219,7 @@ create_ui (App * app)
   /* create the model for the treeview */
 
   app->timeline_store =
-    gtk_list_store_new (4, G_TYPE_UINT64, G_TYPE_STRING, G_TYPE_LONG,
+    gtk_list_store_new (5, G_TYPE_UINT64, G_TYPE_STRING, G_TYPE_LONG,
         G_TYPE_LONG, G_TYPE_LONG);
   gtk_tree_view_set_model (app->timeline_treeview,
       GTK_TREE_MODEL (app->timeline_store));
