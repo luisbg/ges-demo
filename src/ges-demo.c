@@ -194,7 +194,6 @@ create_ui (App * app)
   GtkCellRenderer *duration_renderer;
   GtkCellRenderer *background_type_renderer;
   GtkListStore *backgrounds;
-  GstBus *bus;
 
   /* construct widget tree */
 
@@ -220,11 +219,6 @@ create_ui (App * app)
 
   gtk_tree_view_set_model (app->timeline_treeview,
       GTK_TREE_MODEL (app->timeline_store));
-
-  /* register callbacks on GES objects */
-  bus = gst_pipeline_get_bus (GST_PIPELINE (app->pipeline));
-  gst_bus_add_signal_watch (bus);
-  g_signal_connect (bus, "message", G_CALLBACK (bus_message_cb), app);
 
   /* success */
   gtk_builder_connect_signals (builder, app);
@@ -319,9 +313,15 @@ app_new (void)
 {
   App *app = g_new0 (App, 1);
   GESTrack *a = NULL, *v = NULL;
+  GstBus *bus;
 
   app->timeline = ges_timeline_new ();
   app->pipeline = ges_timeline_pipeline_new ();
+
+  bus = gst_pipeline_get_bus (GST_PIPELINE (app->pipeline));
+  gst_bus_add_signal_watch (bus);
+  g_signal_connect (bus, "message", G_CALLBACK (bus_message_cb), app);
+
   ges_timeline_pipeline_add_timeline (app->pipeline, app->timeline);
 
   /* add base audio and video track */
