@@ -199,6 +199,18 @@ create_ui (App * app)
 
   builder = gtk_builder_new ();
   gtk_builder_add_from_file (builder, "data/ges-demo.glade", NULL);
+  gtk_builder_connect_signals (builder, app);
+
+  app->timeline_treeview = GTK_TREE_VIEW (gtk_builder_get_object (builder,
+      "timeline_treeview"));
+
+  /* create the model for the treeview */
+
+  app->timeline_store =
+    gtk_list_store_new (4, G_TYPE_UINT64, G_TYPE_STRING, G_TYPE_LONG,
+        G_TYPE_LONG, G_TYPE_LONG);
+  gtk_tree_view_set_model (app->timeline_treeview,
+      GTK_TREE_MODEL (app->timeline_store));
 
   /* get a bunch of widgets from the XML tree */
 
@@ -208,20 +220,9 @@ create_ui (App * app)
       "duration_scale"));
   app->in_point_scale = GTK_HSCALE (gtk_builder_get_object (builder,
       "in_point_scale"));
-  app->timeline_treeview = GTK_TREE_VIEW (gtk_builder_get_object (builder,
-      "timeline_treeview"));
   app->main_window = GTK_WIDGET (gtk_builder_get_object (builder, "window"));
 
-  /* create the model for the treeview */
-
-  app->timeline_store =
-    gtk_list_store_new (3, G_TYPE_STRING, G_TYPE_UINT64, G_TYPE_OBJECT);
-
-  gtk_tree_view_set_model (app->timeline_treeview,
-      GTK_TREE_MODEL (app->timeline_store));
-
   /* success */
-  gtk_builder_connect_signals (builder, app);
   g_object_unref (G_OBJECT (builder));
 
   return TRUE;
