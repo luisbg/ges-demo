@@ -309,7 +309,7 @@ app_dispose (App * app)
 }
 
 static App *
-app_new (void)
+app_init (void)
 {
   App *app = g_new0 (App, 1);
   GESTrack *a = NULL, *v = NULL;
@@ -452,9 +452,9 @@ main (int argc, char *argv[])
   /* initialize UI */
   gtk_init (&argc, &argv);
 
-  if ((app = app_new ())) {
-    gtk_main ();
-  }
+  /* initialize and run App */
+  app = app_init ();
+  gtk_main ();
 
   return 0;
 }
