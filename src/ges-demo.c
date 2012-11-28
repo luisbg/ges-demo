@@ -35,6 +35,7 @@
 
 typedef struct Clip
 {
+  guint *id;
   gchar * uri;
   guint64 * start;
   guint64 * duration;
@@ -49,7 +50,7 @@ typedef struct App
   /* back-end objects */
   GESTimeline *timeline;
   GESTimelinePipeline *pipeline;
-  GESTimelineLayer *layer;
+  //GESTimelineLayer *layer;
   GESTrack *audio_track;
   GESTrack *video_track;
   guint audio_tracks;
@@ -69,6 +70,17 @@ typedef struct App
   GtkHScale *in_point_scale;
 
 } App;
+
+enum
+{
+  COL_ID = 0,
+  COL_URI,
+  COL_START,
+  COL_DURATION,
+  COL_IN_POINT,
+  COL_MAX_DURATION,
+  COL_TIMELINEOBJ
+} ;
 
 /* Prototypes for auto-connected signal handlers ***************************/
 
@@ -242,14 +254,49 @@ typedef struct
 static void
 app_add_file (App * app, gchar * uri)
 {
-  GESTimelineObject *obj;
+  Clip *clip = g_new0 (Clip, 1);
+
+  GESTimelineObject *src;
+  GESTimelineLayer *layer;
+  GstDiscoverer *disc;
+  GstDiscovererInfo *info;
+  GtkTreeIter iter;
+  guint idf;
+  guint64 duration;
 
   GST_DEBUG ("adding file %s", uri);
 
-  obj = GES_TIMELINE_OBJECT (ges_timeline_filesource_new (uri));
+  idf = g_list_length (app->objects);
 
-  ges_simple_timeline_layer_add_object (GES_SIMPLE_TIMELINE_LAYER (app->layer),
-      obj, -1);
+  /* Add the file to the GES Timeline */
+  src = GES_TIMELINE_OBJECT (ges_timeline_filesource_new (uri));
+  ges_timeline_object_set_priority (src, 0);
+
+  layer = (GESTimelineLayer *) ges_timeline_layer_new ();
+  ges_timeline_layer_add_object (layer, src);
+  ges_timeline_add_layer (app->timeline, layer);
+
+  disc = gst_discoverer_new (50000000000, NULL);
+  info = gst_discoverer_discover_uri (disc, uri, NULL);
+  duration = gst_discoverer_info_get_duration (info);
+
+  gtk_list_store_append (app->timeline_store, &iter);
+  gtk_list_store_set (app->timeline_store, &iter,
+                      COL_ID, idf,
+                      COL_URI, uri,
+                      COL_START, 0,
+                      COL_DURATION, duration,
+                      COL_IN_POINT, 0,
+                      -1);
+
+  clip->id = &idf;
+  clip->uri = uri;
+  clip->start = 0;
+  clip->duration = &duration;
+  clip->in_point = 0;
+  clip->max_duration = &duration;
+  clip->tlobject = src;
+  app->objects = g_list_append (app->objects, clip);
 }
 
 static void
@@ -367,16 +414,13 @@ _add_file_activated_cb (GtkAction * item, App * app)
       GTK_STOCK_CANCEL,
       GTK_RESPONSE_CANCEL, GTK_STOCK_OK, GTK_RESPONSE_OK, NULL);
 
-  g_object_set (G_OBJECT (dlg), "select-multiple", TRUE, NULL);
-
   if (gtk_dialog_run ((GtkDialog *) dlg) == GTK_RESPONSE_OK) {
-    GSList *uris;
-    GSList *cur;
-    uris = gtk_file_chooser_get_uris (GTK_FILE_CHOOSER (dlg));
-    for (cur = uris; cur; cur = cur->next)
-      app_add_file (app, cur->data);
-    g_slist_free (uris);
+    GSList *uri;
+    uri = gtk_file_chooser_get_uris (GTK_FILE_CHOOSER (dlg));
+    g_print ("Adding: %s\n", uri->data);
+    app_add_file (app, uri->data);
   }
+
   gtk_widget_destroy ((GtkWidget *) dlg);
 }
 
