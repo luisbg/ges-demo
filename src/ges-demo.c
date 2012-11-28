@@ -312,32 +312,23 @@ static App *
 app_init (void)
 {
   App *app = g_new0 (App, 1);
-  GESTrack *a = NULL, *v = NULL;
+  GESTrack *audio = NULL, *video = NULL;
   GstBus *bus;
 
   app->timeline = ges_timeline_new ();
   app->pipeline = ges_timeline_pipeline_new ();
+  ges_timeline_pipeline_add_timeline (app->pipeline, app->timeline);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (app->pipeline));
   gst_bus_add_signal_watch (bus);
   g_signal_connect (bus, "message", G_CALLBACK (bus_message_cb), app);
 
-  ges_timeline_pipeline_add_timeline (app->pipeline, app->timeline);
-
   /* add base audio and video track */
-  a = ges_track_audio_raw_new ();
-  ges_timeline_add_track (app->timeline, a);
+  app->audio_track = ges_track_audio_raw_new ();
+  app->video_track = ges_track_video_raw_new ();
 
-  v = ges_track_video_raw_new ();
-  ges_timeline_add_track (app->timeline, v);
-
-  app->layer = (GESTimelineLayer *) ges_simple_timeline_layer_new ();
-  ges_timeline_add_layer (app->timeline, app->layer);
-
-  app->audio_track = a;
-  app->video_track = v;
-
-  create_ui (app);
+  ges_timeline_add_track (app->timeline, app->audio_track);
+  ges_timeline_add_track (app->timeline, app->video_track);
 
   return app;
 }
@@ -454,6 +445,7 @@ main (int argc, char *argv[])
 
   /* initialize and run App */
   app = app_init ();
+  create_ui (app);
   gtk_main ();
 
   return 0;
