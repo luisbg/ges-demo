@@ -218,8 +218,8 @@ create_ui (App * app)
   /* create the model for the treeview */
 
   app->timeline_store =
-    gtk_list_store_new (5, G_TYPE_UINT64, G_TYPE_STRING, G_TYPE_LONG,
-        G_TYPE_LONG, G_TYPE_LONG);
+    gtk_list_store_new (5, G_TYPE_UINT64, G_TYPE_STRING, G_TYPE_UINT64,
+        G_TYPE_UINT64, G_TYPE_UINT64);
   gtk_tree_view_set_model (app->timeline_treeview,
       GTK_TREE_MODEL (app->timeline_store));
 
@@ -458,6 +458,32 @@ _in_point_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
 gboolean
 _start_changed (GtkEntry * entry, App * app)
 {
+  GtkTreeSelection * selection;
+  GtkTreeIter row_iter;
+  gboolean selected;
+
+  guint64 new_start;
+  const gchar *text;
+
+  GValue val = G_VALUE_INIT;
+
+  if (app->selected_object != NULL) {
+    text = gtk_entry_get_text (entry);
+    new_start = g_ascii_strtoll (text, NULL, 0);
+    g_print ("new start entered: %d\n", new_start);
+
+    g_value_init (&val, G_TYPE_UINT64);
+    g_value_set_uint64 (&val, new_start);
+
+    selection = gtk_tree_view_get_selection (app->timeline_treeview);
+    selected = gtk_tree_selection_get_selected (selection, NULL, &row_iter);
+    gtk_list_store_set_value (app->timeline_store, &row_iter, 2, &val);
+
+    app->selected_object->start = new_start;
+
+    ges_timeline_object_set_start (app->selected_object->tlobject, new_start);
+  }
+
   return TRUE;
 }
 
