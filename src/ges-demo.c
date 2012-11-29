@@ -148,6 +148,39 @@ bus_message_cb (GstBus * bus, GstMessage * message, App * app)
 
 /* Static UI Callbacks ******************************************************/
 
+static void
+prioritize (GESTimelineObject *in_obj)
+{
+  return;
+}
+
+static void
+update_properties (App * app)
+{
+  guint64 duration_scale;
+  gchar * start_txt;
+
+  start_txt = g_strdup_printf ("%d", app->selected_object->start);
+  duration_scale = app->selected_object->max_duration -
+      app->selected_object->in_point;
+
+  g_print ("selected: %s\n", app->selected_object->uri);
+  g_print ("start: %d\n", app->selected_object->start);
+  g_print ("duration: %d\n", app->selected_object->duration);
+  g_print ("in point: %d\n", app->selected_object->in_point);
+  g_print ("max duration: %d\n\n", app->selected_object->max_duration);
+
+  gtk_entry_set_text (app->start_entry, start_txt);
+  gtk_range_set_range (GTK_RANGE (app->duration_scale), 0.0,
+      (gdouble) duration_scale);
+  gtk_range_set_value (GTK_RANGE (app->duration_scale),
+      (gdouble) app->selected_object->duration);
+  gtk_range_set_range (GTK_RANGE (app->in_point_scale), 0.0,
+      (gdouble) app->selected_object->max_duration);
+  gtk_range_set_value (GTK_RANGE (app->in_point_scale),
+      (gdouble) app->selected_object->in_point);
+}
+
 static gboolean
 check_time (const gchar * time)
 {
@@ -249,6 +282,34 @@ typedef struct
   GList *objects;
   guint n;
 } select_info;
+
+static App *
+app_init (void)
+{
+  App *app = g_new0 (App, 1);
+  GESTrack *audio = NULL, *video = NULL;
+  GstBus *bus;
+
+  app->timeline = ges_timeline_new ();
+  app->pipeline = ges_timeline_pipeline_new ();
+  ges_timeline_pipeline_add_timeline (app->pipeline, app->timeline);
+
+  bus = gst_pipeline_get_bus (GST_PIPELINE (app->pipeline));
+  gst_bus_add_signal_watch (bus);
+  g_signal_connect (bus, "message", G_CALLBACK (bus_message_cb), app);
+
+  /* add base audio and video track */
+  app->audio_track = ges_track_audio_raw_new ();
+  app->video_track = ges_track_video_raw_new ();
+
+  ges_timeline_add_track (app->timeline, app->audio_track);
+  ges_timeline_add_track (app->timeline, app->video_track);
+
+  app->objects = NULL;
+  app->selected_object = NULL;
+
+  return app;
+}
 
 static void
 app_add_file (App * app, gchar * uri)
@@ -355,35 +416,35 @@ app_dispose (App * app)
   gtk_main_quit ();
 }
 
-static App *
-app_init (void)
-{
-  App *app = g_new0 (App, 1);
-  GESTrack *audio = NULL, *video = NULL;
-  GstBus *bus;
-
-  app->timeline = ges_timeline_new ();
-  app->pipeline = ges_timeline_pipeline_new ();
-  ges_timeline_pipeline_add_timeline (app->pipeline, app->timeline);
-
-  bus = gst_pipeline_get_bus (GST_PIPELINE (app->pipeline));
-  gst_bus_add_signal_watch (bus);
-  g_signal_connect (bus, "message", G_CALLBACK (bus_message_cb), app);
-
-  /* add base audio and video track */
-  app->audio_track = ges_track_audio_raw_new ();
-  app->video_track = ges_track_video_raw_new ();
-
-  ges_timeline_add_track (app->timeline, app->audio_track);
-  ges_timeline_add_track (app->timeline, app->video_track);
-
-  app->objects = NULL;
-  app->selected_object = NULL;
-
-  return app;
-}
-
 /* UI callbacks  ************************************************************/
+
+gboolean
+_clip_selected (GtkTreeView * treeview, App * app)
+{
+  Clip *clip;
+
+  GtkTreeSelection * selection;
+  GtkTreeIter row_iter;
+  gboolean selected;
+
+  selection = gtk_tree_view_get_selection (app->timeline_treeview);
+  selected = gtk_tree_selection_get_selected (selection, NULL, &row_iter);
+
+  if (!selected) {
+    prioritize (NULL);
+  } else {
+    guint idf;
+
+    gtk_tree_model_get (GTK_TREE_MODEL (app->timeline_store), &row_iter, COL_ID,
+        &idf, -1);
+
+    app->selected_object = g_list_nth_data (app->objects, idf);
+    update_properties (app);
+    prioritize (app->selected_object->tlobject);
+  }
+
+  return TRUE;
+}
 
 gboolean
 _play_activate_cb (GtkObject * button, App * app)
@@ -424,6 +485,38 @@ _add_file_activated_cb (GtkAction * item, App * app)
   }
 
   gtk_widget_destroy ((GtkWidget *) dlg);
+}
+
+gboolean
+_start_changed (GtkEntry * entry, App * app)
+{
+  GtkTreeSelection * selection;
+  GtkTreeIter row_iter;
+  gboolean selected;
+
+  guint64 new_start;
+  const gchar *text;
+
+  GValue val = G_VALUE_INIT;
+
+  if (app->selected_object != NULL) {
+    text = gtk_entry_get_text (entry);
+    new_start = g_ascii_strtoll (text, NULL, 0);
+    g_print ("new start entered: %d\n", new_start);
+
+    g_value_init (&val, G_TYPE_UINT64);
+    g_value_set_uint64 (&val, new_start);
+
+    selection = gtk_tree_view_get_selection (app->timeline_treeview);
+    selected = gtk_tree_selection_get_selected (selection, NULL, &row_iter);
+    gtk_list_store_set_value (app->timeline_store, &row_iter, 2, &val);
+
+    app->selected_object->start = new_start;
+
+    ges_timeline_object_set_start (app->selected_object->tlobject, new_start);
+  }
+
+  return TRUE;
 }
 
 gboolean
@@ -497,99 +590,6 @@ _in_point_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
 
     ges_timeline_object_set_inpoint (app->selected_object->tlobject,
         new_in_point);
-  }
-
-  return TRUE;
-}
-
-gboolean
-_start_changed (GtkEntry * entry, App * app)
-{
-  GtkTreeSelection * selection;
-  GtkTreeIter row_iter;
-  gboolean selected;
-
-  guint64 new_start;
-  const gchar *text;
-
-  GValue val = G_VALUE_INIT;
-
-  if (app->selected_object != NULL) {
-    text = gtk_entry_get_text (entry);
-    new_start = g_ascii_strtoll (text, NULL, 0);
-    g_print ("new start entered: %d\n", new_start);
-
-    g_value_init (&val, G_TYPE_UINT64);
-    g_value_set_uint64 (&val, new_start);
-
-    selection = gtk_tree_view_get_selection (app->timeline_treeview);
-    selected = gtk_tree_selection_get_selected (selection, NULL, &row_iter);
-    gtk_list_store_set_value (app->timeline_store, &row_iter, 2, &val);
-
-    app->selected_object->start = new_start;
-
-    ges_timeline_object_set_start (app->selected_object->tlobject, new_start);
-  }
-
-  return TRUE;
-}
-
-void
-prioritize (GESTimelineObject *in_obj)
-{
-  return;
-}
-
-void
-update_properties (App * app)
-{
-  guint64 duration_scale;
-  gchar * start_txt;
-
-  start_txt = g_strdup_printf ("%d", app->selected_object->start);
-  duration_scale = app->selected_object->max_duration -
-      app->selected_object->in_point;
-
-  g_print ("selected: %s\n", app->selected_object->uri);
-  g_print ("start: %d\n", app->selected_object->start);
-  g_print ("duration: %d\n", app->selected_object->duration);
-  g_print ("in point: %d\n", app->selected_object->in_point);
-  g_print ("max duration: %d\n\n", app->selected_object->max_duration);
-
-  gtk_entry_set_text (app->start_entry, start_txt);
-  gtk_range_set_range (GTK_RANGE (app->duration_scale), 0.0,
-      (gdouble) duration_scale);
-  gtk_range_set_value (GTK_RANGE (app->duration_scale),
-      (gdouble) app->selected_object->duration);
-  gtk_range_set_range (GTK_RANGE (app->in_point_scale), 0.0,
-      (gdouble) app->selected_object->max_duration);
-  gtk_range_set_value (GTK_RANGE (app->in_point_scale),
-      (gdouble) app->selected_object->in_point);
-}
-
-gboolean
-_clip_selected (GtkTreeView * treeview, App * app)
-{
-  Clip *clip;
-
-  GtkTreeSelection * selection;
-  GtkTreeIter row_iter;
-  gboolean selected;
-
-  selection = gtk_tree_view_get_selection (app->timeline_treeview);
-  selected = gtk_tree_selection_get_selected (selection, NULL, &row_iter);
-
-  if (!selected) {
-    prioritize (NULL);
-  } else {
-    guint idf;
-
-    gtk_tree_model_get (GTK_TREE_MODEL (app->timeline_store), &row_iter, COL_ID,
-        &idf, -1);
-
-    app->selected_object = g_list_nth_data (app->objects, idf);
-    update_properties (app);
-    prioritize (app->selected_object->tlobject);
   }
 
   return TRUE;
