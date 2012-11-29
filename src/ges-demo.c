@@ -35,12 +35,12 @@
 
 typedef struct Clip
 {
-  guint *id;
+  guint id;
   gchar * uri;
-  guint64 * start;
-  guint64 * duration;
-  guint64 * in_point;
-  guint64 * max_duration;
+  guint64 start;
+  guint64 duration;
+  guint64 in_point;
+  guint64 max_duration;
   GESTimelineObject * tlobject;
 
 } Clip;
@@ -50,7 +50,6 @@ typedef struct App
   /* back-end objects */
   GESTimeline *timeline;
   GESTimelinePipeline *pipeline;
-  //GESTimelineLayer *layer;
   GESTrack *audio_track;
   GESTrack *video_track;
   guint audio_tracks;
@@ -289,12 +288,12 @@ app_add_file (App * app, gchar * uri)
                       COL_IN_POINT, 0,
                       -1);
 
-  clip->id = &idf;
+  clip->id = idf;
   clip->uri = uri;
   clip->start = 0;
-  clip->duration = &duration;
+  clip->duration = duration;
   clip->in_point = 0;
-  clip->max_duration = &duration;
+  clip->max_duration = duration;
   clip->tlobject = src;
   app->objects = g_list_append (app->objects, clip);
 }
@@ -462,9 +461,64 @@ _start_changed (GtkEntry * entry, App * app)
   return TRUE;
 }
 
+void
+prioritize (GESTimelineObject *in_obj)
+{
+  return;
+}
+
+void
+update_properties (App * app)
+{
+  guint64 duration_scale;
+  gchar * start_txt;
+
+  start_txt = g_strdup_printf ("%d", app->selected_object->start);
+  duration_scale = app->selected_object->max_duration -
+      app->selected_object->in_point;
+
+  g_print ("selected: %s\n", app->selected_object->uri);
+  g_print ("start: %d\n", app->selected_object->start);
+  g_print ("duration: %d\n", app->selected_object->duration);
+  g_print ("in point: %d\n", app->selected_object->in_point);
+  g_print ("max duration: %d\n\n", app->selected_object->max_duration);
+
+  gtk_entry_set_text (app->start_entry, start_txt);
+  gtk_range_set_range (GTK_RANGE (app->duration_scale), 0.0,
+      (gdouble) duration_scale);
+  gtk_range_set_value (GTK_RANGE (app->duration_scale),
+      (gdouble) app->selected_object->duration);
+  gtk_range_set_range (GTK_RANGE (app->in_point_scale), 0.0,
+      (gdouble) app->selected_object->max_duration);
+  gtk_range_set_value (GTK_RANGE (app->in_point_scale),
+      (gdouble) app->selected_object->in_point);
+}
+
 gboolean
 _clip_selected (GtkTreeView * treeview, App * app)
 {
+  Clip *clip;
+
+  GtkTreeSelection * selection;
+  GtkTreeIter row_iter;
+  gboolean selected;
+
+  selection = gtk_tree_view_get_selection (app->timeline_treeview);
+  selected = gtk_tree_selection_get_selected (selection, NULL, &row_iter);
+
+  if (!selected) {
+    prioritize (NULL);
+  } else {
+    guint idf;
+
+    gtk_tree_model_get (GTK_TREE_MODEL (app->timeline_store), &row_iter, COL_ID,
+        &idf, -1);
+
+    app->selected_object = g_list_nth_data (app->objects, idf);
+    update_properties (app);
+    prioritize (app->selected_object->tlobject);
+  }
+
   return TRUE;
 }
 
