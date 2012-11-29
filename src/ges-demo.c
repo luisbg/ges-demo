@@ -93,9 +93,9 @@ gboolean _play_activate_cb (GtkObject * button, App * app);
 gboolean _stop_activate_cb (GtkObject * button, App * app);
 void _add_file_activated_cb (GtkAction * item, App * app);
 gboolean _duration_scale_change_value_cb (GtkRange * range,
-    GtkScrollType unused, gdouble value, App * app);
+    GtkScrollType unused, gdouble unused_b, App * app);
 gboolean _in_point_scale_change_value_cb (GtkRange * range,
-    GtkScrollType unused, gdouble v,  App * app);
+    GtkScrollType unused, gdouble unused_b,  App * app);
 gboolean _start_changed (GtkEntry * entry, App * app);
 gboolean _clip_selected (GtkTreeView * treeview, App * app);
 gboolean _delete_activate_cb (GtkObject * button, App * app);
@@ -428,15 +428,35 @@ _add_file_activated_cb (GtkAction * item, App * app)
 
 gboolean
 _duration_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
-    gdouble value, App * app)
+    gdouble unused_b, App * app)
 {
-  guint64 duration, maxduration;
-  maxduration =
-      ges_timeline_filesource_get_max_duration (GES_TIMELINE_FILE_SOURCE
-      (app->selected_object->tlobject));
-  duration = (value < maxduration ? (value > 0 ? value : 0) : maxduration);
-  g_object_set (G_OBJECT (app->selected_object->tlobject), "duration",
-      (guint64) duration, NULL);
+  GtkTreeSelection * selection;
+  GtkTreeIter row_iter;
+  gboolean selected;
+
+  gdouble value;
+  guint64 new_duration;
+
+  GValue gval = G_VALUE_INIT;
+
+  if (app->selected_object != NULL) {
+    value = gtk_range_get_value (range);
+    new_duration = (guint64) value;
+
+    g_print ("new duration entered: %d\n", new_duration);
+
+    g_value_init (&gval, G_TYPE_UINT64);
+    g_value_set_uint64 (&gval, new_duration);
+
+    selection = gtk_tree_view_get_selection (app->timeline_treeview);
+    selected = gtk_tree_selection_get_selected (selection, NULL, &row_iter);
+    gtk_list_store_set_value (app->timeline_store, &row_iter, 3, &gval);
+
+    app->selected_object->duration = new_duration;
+
+    ges_timeline_object_set_duration (app->selected_object->tlobject,
+        new_duration);
+  }
 
   return TRUE;
 }
@@ -444,7 +464,7 @@ _duration_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
 
 gboolean
 _in_point_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
-    gdouble v, App * app)
+    gdouble unused_b, App * app)
 {
   GtkTreeSelection * selection;
   GtkTreeIter row_iter;
