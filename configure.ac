@@ -33,8 +33,8 @@ AC_LIBTOOL_WIN32_DLL
 AC_CANONICAL_HOST
 
 # keep one single GST_REQ, core/base should be same versions anyway
-GST_REQ=1.0.0
-GES_REQ=0.11
+GST_REQ=0.10
+GES_REQ=0.10
 GTK2_REQ=2.14.0
 
 PKG_CHECK_MODULES([GST], \
