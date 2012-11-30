@@ -92,10 +92,8 @@ gboolean _window_delete_event_cb (GtkObject * window, GdkEvent * event,
 gboolean _play_activate_cb (GtkObject * button, App * app);
 gboolean _stop_activate_cb (GtkObject * button, App * app);
 void _add_file_activated_cb (GtkAction * item, App * app);
-gboolean _duration_scale_change_value_cb (GtkRange * range,
-    GtkScrollType unused, gdouble unused_b, App * app);
-gboolean _in_point_scale_change_value_cb (GtkRange * range,
-    GtkScrollType unused, gdouble unused_b,  App * app);
+gboolean _duration_scale_value_changed_cb (GtkRange * range, App * app);
+gboolean _in_point_scale_value_changed_cb (GtkRange * range, App * app);
 gboolean _start_changed (GtkEntry * entry, App * app);
 gboolean _clip_selected (GtkTreeView * treeview, App * app);
 gboolean _delete_activate_cb (GtkObject * button, App * app);
@@ -520,8 +518,7 @@ _start_changed (GtkEntry * entry, App * app)
 }
 
 gboolean
-_duration_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
-    gdouble unused_b, App * app)
+_duration_scale_value_changed_cb (GtkRange * range, App * app)
 {
   GtkTreeSelection * selection;
   GtkTreeIter row_iter;
@@ -556,8 +553,7 @@ _duration_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
 
 
 gboolean
-_in_point_scale_change_value_cb (GtkRange * range, GtkScrollType unused,
-    gdouble unused_b, App * app)
+_in_point_scale_value_changed_cb (GtkRange * range, App * app)
 {
   GtkTreeSelection * selection;
   GtkTreeIter row_iter;
